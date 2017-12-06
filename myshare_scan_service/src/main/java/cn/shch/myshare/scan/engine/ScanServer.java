@@ -43,7 +43,7 @@ public class ScanServer {
 	// 调用start方法时传入的参数可选项，如果传入的INCREMENTAL_UPDATE，表示增量更新，扫描指定目录后，将文件的改变更新入数据库；
 	public static final int INCREMENTAL_UPDATE = 2;
 	// 要扫描的目录
-	public static final File ROOT_DIRECTORY;
+	public static final File[] ROOT_DIRECTORY;
 	// 扫描强度，有两个选项，higher和medium，higher表示立刻扫描；medium表示等待系统不忙时扫描，
 	public static final String SCAN_INTENSITY;
 	// SCAN_INTENSITY_PREMISE指定了在cpu使用率为其所指定的百分比之下表示系统不忙；
@@ -72,15 +72,20 @@ public class ScanServer {
 			logger.error(LoggerUtils.buildDebugMessage(e.getMessage()));
 		}
 		String scanPath = prop.getProperty("scanpath");
-		ROOT_DIRECTORY = new File(scanPath);
-		if (!ROOT_DIRECTORY.exists()) {
-			logger.error(LoggerUtils.buildDebugMessage("要检索的根路径不存在--" + scanPath));
-			System.exit(0);
+		String[] split = scanPath.split(",");
+		ROOT_DIRECTORY = new File[split.length];
+		for (int i = 0; i < split.length; i++) {
+			ROOT_DIRECTORY[i] = new File(split[i]);
+			if (!ROOT_DIRECTORY[i].exists()) {
+				logger.error(LoggerUtils.buildDebugMessage("要检索的根路径不存在--" + split[i]));
+				System.exit(0);
+			}
+			if (!ROOT_DIRECTORY[i].isDirectory()) {
+				logger.error(LoggerUtils.buildDebugMessage("要检索的根路径必须是文件夹，不能是文件！"));
+				System.exit(0);
+			}
 		}
-		if (!ROOT_DIRECTORY.isDirectory()) {
-			logger.error(LoggerUtils.buildDebugMessage("要检索的根路径必须是文件夹，不能是文件！"));
-			System.exit(0);
-		}
+
 		String s = prop.getProperty("file.suffix");
 		if (s == null || s.trim().length() == 0) {
 			logger.error(LoggerUtils.buildDebugMessage("未指定检索文件类型！！--" + s));
@@ -105,6 +110,7 @@ public class ScanServer {
 		// logger.error(LoggerUtils.buildDebugMessage(e.getMessage()));
 		// }
 	}
+
 	private boolean isBusy = false;
 
 	public ScanServer() {
@@ -117,7 +123,13 @@ public class ScanServer {
 			// List<File> fileList = new ArrayList<File>();
 			List<FileData> fileList = null;
 			try {
-				fileList = loopFile(ROOT_DIRECTORY);
+				for (int i = 0; i < ROOT_DIRECTORY.length; i++) {
+					if (fileList != null) {
+						fileList.addAll(loopFile(ROOT_DIRECTORY[i]));
+						continue;
+					}
+					fileList = loopFile(ROOT_DIRECTORY[i]);
+				}
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -151,7 +163,8 @@ public class ScanServer {
 			// }
 			// incrementUpdate(SCAN_INTENSITY, 0);
 			if (SCAN_INTENSITY.equals("higher")) {
-				work();
+				for(int i=0;i<ROOT_DIRECTORY.length;i++)
+				work(i);
 
 			} else if (SCAN_INTENSITY.equals("medium")) {
 				Sigar sigar = new Sigar();
@@ -179,7 +192,9 @@ public class ScanServer {
 					}
 				}
 				if (!this.isBusy()) {
-					work();
+					for (int i = 0; i < ROOT_DIRECTORY.length; i++) {
+						work(i);
+					}
 				} else {
 					LoggerUtils.print("服务器忙碌，暂停扫描", true);
 				}
@@ -190,15 +205,15 @@ public class ScanServer {
 		// }
 	}
 
-	private void work() {
+	private void work(int idx) {
 		LoggerUtils.print("本次扫描开始时间：" + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()), true);
-		LoggerUtils.print("扫描路径：" + ROOT_DIRECTORY, true);
+		LoggerUtils.print("扫描路径：" + ROOT_DIRECTORY[idx], true);
 
 		LoggerUtils.print("扫描文件类型：" + FILE_SUFFIX_LIST, true);
 
 		LoggerUtils.print("扫描强度：" + SCAN_INTENSITY, true);
 
-		LoggerUtils.print("扫描服务启动......请等待，等待时间由扫描目录文件数量多少决定,在此期间，请勿对" + ROOT_DIRECTORY + "目录进行任何操作，以免造成数据不准确...",
+		LoggerUtils.print("扫描服务启动......请等待，等待时间由扫描目录文件数量多少决定,在此期间，请勿对" + ROOT_DIRECTORY[idx] + "目录进行任何操作，以免造成数据不准确...",
 				true);
 		long startTime = System.currentTimeMillis();
 
@@ -207,7 +222,7 @@ public class ScanServer {
 				"-----------------------------------------------------------------扫描过程开始----------------------------------------------------------------------------------",
 				false);
 		try {
-			list = loopFile(ROOT_DIRECTORY);
+			list = loopFile(ROOT_DIRECTORY[idx]);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -279,7 +294,8 @@ public class ScanServer {
 				toIndex += surplus;
 			System.out.println(fromIndex + "    " + toIndex);
 			List<FileData> list = fileList.subList(fromIndex, toIndex);
-			// cnt = analyzeAddOrUpdateByEachThread(list, dbList, updateList, addList, cnt);
+			// cnt = analyzeAddOrUpdateByEachThread(list, dbList, updateList,
+			// addList, cnt);
 			Thread th = new Thread(new MyTask(list, dbList, updateList, addList, cnt, cdl));
 			th.start();
 			// threadList.add(th);
@@ -323,9 +339,10 @@ public class ScanServer {
 		}
 
 		public void run() {
-			// LoggerUtils.print(Thread.currentThread().getName()+":is start....", false);
+			// LoggerUtils.print(Thread.currentThread().getName()+":is
+			// start....", false);
 			for (FileData fd : list) {
-				//FileData fd = fileToFileData(f);
+				// FileData fd = fileToFileData(f);
 				int idx = Collections.binarySearch(dbList, fd);
 				if (idx >= 0) {
 					FileData fd2 = dbList.get(idx);
@@ -395,8 +412,8 @@ public class ScanServer {
 		boolean isHidden = f.isHidden();
 		// canExecute 适用于linux
 		boolean canExecute = f.canExecute();
-		//Boolean canRead = MyFileUtils.canRead(f);
-		boolean canRead=true;
+		// Boolean canRead = MyFileUtils.canRead(f);
+		boolean canRead = true;
 		// =========================================调用MyFileUtils的canWrite方法会修改此文件，有可能造成数据不准确，此处先暂时设置为true==================
 		Boolean canWrite = true;
 		// ========================================="+f.getName()+"==================
@@ -441,40 +458,40 @@ public class ScanServer {
 	}
 
 	/**
-	 * 给所有指定目录添加监听
+	 * 给所有指定目录添加监听,已取消
 	 * 
 	 * @param service
 	 * @throws IOException
 	 */
-	private void registerAllDirectory(final WatchService service) throws IOException {
-
-		Files.walkFileTree(Paths.get(ROOT_DIRECTORY.getCanonicalPath()), new FileVisitor<Path>() {
-			public FileVisitResult preVisitDirectory(Path dir, java.nio.file.attribute.BasicFileAttributes attrs)
-					throws IOException {
-				Path realPath = dir.toRealPath(LinkOption.NOFOLLOW_LINKS);
-				Paths.get(realPath.toString()).register(service, StandardWatchEventKinds.ENTRY_CREATE,
-						StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
-				return FileVisitResult.CONTINUE;
-			};
-
-			public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-
-				return FileVisitResult.CONTINUE;
-			}
-
-			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-
-				return FileVisitResult.CONTINUE;
-			}
-
-			public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-				return FileVisitResult.CONTINUE;
-			};
-		});
-
-		Paths.get(ROOT_DIRECTORY.getCanonicalPath()).register(service, StandardWatchEventKinds.ENTRY_CREATE,
-				StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
-	}
+//	private void registerAllDirectory(final WatchService service) throws IOException {
+//
+//		Files.walkFileTree(Paths.get(ROOT_DIRECTORY.getCanonicalPath()), new FileVisitor<Path>() {
+//			public FileVisitResult preVisitDirectory(Path dir, java.nio.file.attribute.BasicFileAttributes attrs)
+//					throws IOException {
+//				Path realPath = dir.toRealPath(LinkOption.NOFOLLOW_LINKS);
+//				Paths.get(realPath.toString()).register(service, StandardWatchEventKinds.ENTRY_CREATE,
+//						StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
+//				return FileVisitResult.CONTINUE;
+//			};
+//
+//			public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+//
+//				return FileVisitResult.CONTINUE;
+//			}
+//
+//			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+//
+//				return FileVisitResult.CONTINUE;
+//			}
+//
+//			public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+//				return FileVisitResult.CONTINUE;
+//			};
+//		});
+//
+//		Paths.get(ROOT_DIRECTORY.getCanonicalPath()).register(service, StandardWatchEventKinds.ENTRY_CREATE,
+//				StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
+//	}
 
 	/**
 	 * 采用递归方式遍历所有文件（夹），性能较低，放弃使用,改用重载的 loopFile(File rootDirectory)方法
@@ -546,7 +563,7 @@ public class ScanServer {
 			if (filePath != null) {
 				File f = new File(filePath.toString());
 				// logger.debug(f.getName()+" "+f.lastModified());
-				FileData fd=fileToFileData(f);
+				FileData fd = fileToFileData(f);
 				list.add(fd);
 			}
 			if (getCnt() % reportSize == 0)
@@ -577,7 +594,7 @@ public class ScanServer {
 						int idx = Collections.binarySearch(FILE_SUFFIX_LIST, suffix);
 						if (idx >= 0) {
 							File ff = new File(file.toRealPath(LinkOption.NOFOLLOW_LINKS).toString());
-							FileData fd=fileToFileData(ff);
+							FileData fd = fileToFileData(ff);
 							list.add(fd);
 						}
 					}
