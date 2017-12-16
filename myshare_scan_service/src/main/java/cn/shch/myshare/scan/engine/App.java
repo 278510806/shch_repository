@@ -1,7 +1,6 @@
 package cn.shch.myshare.scan.engine;
 
-import org.hyperic.sigar.Sigar;
-import org.hyperic.sigar.SigarException;
+
 
 /**
  * Hello world!

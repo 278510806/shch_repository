@@ -22,6 +22,7 @@ public class FileData implements Comparable<FileData> {
 	private long createTime;
 	private long lastAccess;
 	private long lastModified;
+	private String fileType;
 
 	public String getFileName() {
 		return fileName;
@@ -190,5 +191,13 @@ public class FileData implements Comparable<FileData> {
 	// Boolean(canWrite).compareTo(o.canWrite)+(int)(createTime-o.createTime)+(int)(lastModified-o.lastModified)
 	// +(int)(lastAccess+o.lastAccess);
 	// }
+
+	public String getFileType() {
+		return fileType;
+	}
+
+	public void setFileType(String fileType) {
+		this.fileType = fileType;
+	}
 
 }

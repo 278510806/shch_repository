@@ -33,8 +33,9 @@ public class DbOperator {
 	ResultSet rs = null;
 	try {
 	    con = JdbcUtils.getConnection();
-	    String sql = "insert into filedata(filename,filepath,isfile,isdirectory,ishidden,canexecute,canread,canwrite,freespace,totalspace,usablespace,filesize,createtime,lastaccess,lastmodified) values("
-		    + "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+	    String sql = "insert into filedata(filename,filepath,isfile,isdirectory,ishidden,canexecute,canread,canwrite,"
+	    		+ "freespace,totalspace,usablespace,filesize,createtime,lastaccess,lastmodified,filetype) values("
+		    + "?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 	    pstmt = con.prepareStatement(sql);
 	    for (int i = 0; i < list.size(); i++) {
 		FileData f = list.get(i);
@@ -58,6 +59,7 @@ public class DbOperator {
 		long createTime = f.getCreateTime();
 		long lastAccess = f.getLastAccess();
 		long lastModified = f.getLastModified();
+		String fileType=f.getFileType();
 		// Files.readAttributes(path, type, options)
 		// long lastModified = f.lastModified();
 		// // 获取文件时间属性
@@ -96,6 +98,7 @@ public class DbOperator {
 		pstmt.setObject(13, createTime);
 		pstmt.setObject(14, lastAccess);
 		pstmt.setObject(15, lastModified);
+		pstmt.setObject(16, fileType);
 		pstmt.addBatch();
 	    }
 	    pstmt.executeBatch();

@@ -45,9 +45,11 @@
 			<artifactId>sigar</artifactId>
 			<version>1.6.5.132</version>
 		</dependency>
-
-
-
+		<dependency>
+			<groupId>cn.shch</groupId>
+			<artifactId>common</artifactId>
+			<version>0.0.2-SNAPSHOT</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>

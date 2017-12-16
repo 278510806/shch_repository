@@ -19,9 +19,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
@@ -32,6 +35,7 @@ import org.hyperic.sigar.CpuPerc;
 import org.hyperic.sigar.Sigar;
 import org.hyperic.sigar.SigarException;
 
+import cn.shch.common.MyFileCommon;
 import cn.shch.myshare.scan.engine.common.LoggerUtils;
 import cn.shch.myshare.scan.engine.common.MyFileUtils;
 import cn.shch.myshare.scan.engine.dao.DbOperator;
@@ -54,6 +58,9 @@ public class ScanServer {
 	public static final int ANALYZE_THREAD_COUNT;
 	// 要扫描的所有文件类型
 	public static final List<String> FILE_SUFFIX_LIST = new ArrayList<String>();
+
+	// 根据不同key名分辨文件的额不同类型，方便保存数据库filetype字段
+	//public static final Map<String, String> FILE_TYPE_MAP = new HashMap<String, String>();
 
 	//
 	public static final String SCAN_RECORD;
@@ -104,6 +111,14 @@ public class ScanServer {
 		SCAN_RECORD = prop.getProperty("scan.log.path");
 		String tmpcnt = prop.getProperty("analyze.thread.count");
 		ANALYZE_THREAD_COUNT = Integer.parseInt(tmpcnt);
+		// 将所有不同文件类型对应的后缀放入FILE_TYPE_MAP中
+//		for (Enumeration<?> en = prop.propertyNames(); en.hasMoreElements();) {
+//			String name = en.nextElement().toString();
+//			if (name.startsWith("file.")) {
+//				FILE_TYPE_MAP.put(name, prop.getProperty(name));
+//			}
+//		}
+//		LoggerUtils.buildDebugMessage("FILE_TYPE_MAP:" + FILE_TYPE_MAP);
 		// 排序，方便后面使用二分查找法以提高查找效率
 		Collections.sort(FILE_SUFFIX_LIST);
 		// } catch (Exception e) {
@@ -163,8 +178,8 @@ public class ScanServer {
 			// }
 			// incrementUpdate(SCAN_INTENSITY, 0);
 			if (SCAN_INTENSITY.equals("higher")) {
-				for(int i=0;i<ROOT_DIRECTORY.length;i++)
-				work(i);
+				for (int i = 0; i < ROOT_DIRECTORY.length; i++)
+					work(i);
 
 			} else if (SCAN_INTENSITY.equals("medium")) {
 				Sigar sigar = new Sigar();
@@ -254,6 +269,12 @@ public class ScanServer {
 		LoggerUtils.print(
 				"-----------------------------------------------------------------保存数据过程结束----------------------------------------------------------------------------------",
 				false);
+		LoggerUtils.print(
+				"----------------------------------------------------------更新数据过程开始---------------------------------------------------------------------------------",
+				false);
+		LoggerUtils.print(
+				"----------------------------------------------------------更新数据过程結束---------------------------------------------------------------------------------",
+				false);
 		LoggerUtils.print("耗时：" + second2 + "秒", false);
 		LoggerUtils.print("扫描服务顺利完成......", true);
 		LoggerUtils.print("共扫描文件：" + list.size() + "个", true);
@@ -282,7 +303,7 @@ public class ScanServer {
 		AtomicLong cnt = new AtomicLong(0);
 		// long analyzeCount = 1000;
 		int fileListCount = fileList.size();
-		System.out.println(fileList.size());
+		// System.out.println(fileList.size());
 		int eachThreadSize = fileListCount / ANALYZE_THREAD_COUNT;
 		int surplus = fileListCount % ANALYZE_THREAD_COUNT;
 		// List<Thread> threadList=new ArrayList<Thread>();
@@ -292,7 +313,6 @@ public class ScanServer {
 			int toIndex = (i + 1) * eachThreadSize;
 			if (i == ANALYZE_THREAD_COUNT - 1)
 				toIndex += surplus;
-			System.out.println(fromIndex + "    " + toIndex);
 			List<FileData> list = fileList.subList(fromIndex, toIndex);
 			// cnt = analyzeAddOrUpdateByEachThread(list, dbList, updateList,
 			// addList, cnt);
@@ -437,6 +457,10 @@ public class ScanServer {
 		// fileToFileData:==readAttributes的lastModified:"+lastModified);
 		// System.out.println("in
 		// fileToFileData:==f.lastModified:"+f.getName()+" "+f.lastModified());
+
+		// 文件类型
+		// String fileType=null;
+		String suffix = MyFileCommon.getFileNameSuffix(fileName);
 		FileData fd = new FileData();
 		// fd.setId(rs.getInt("id"));
 		fd.setFileName(fileName);
@@ -454,6 +478,8 @@ public class ScanServer {
 		fd.setCreateTime(createTime);
 		fd.setLastModified(lastModified);
 		fd.setLastAccess(lastAccess);
+		if (suffix != null)
+			fd.setFileType(suffix);
 		return fd;
 	}
 
@@ -463,35 +489,43 @@ public class ScanServer {
 	 * @param service
 	 * @throws IOException
 	 */
-//	private void registerAllDirectory(final WatchService service) throws IOException {
-//
-//		Files.walkFileTree(Paths.get(ROOT_DIRECTORY.getCanonicalPath()), new FileVisitor<Path>() {
-//			public FileVisitResult preVisitDirectory(Path dir, java.nio.file.attribute.BasicFileAttributes attrs)
-//					throws IOException {
-//				Path realPath = dir.toRealPath(LinkOption.NOFOLLOW_LINKS);
-//				Paths.get(realPath.toString()).register(service, StandardWatchEventKinds.ENTRY_CREATE,
-//						StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
-//				return FileVisitResult.CONTINUE;
-//			};
-//
-//			public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-//
-//				return FileVisitResult.CONTINUE;
-//			}
-//
-//			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-//
-//				return FileVisitResult.CONTINUE;
-//			}
-//
-//			public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-//				return FileVisitResult.CONTINUE;
-//			};
-//		});
-//
-//		Paths.get(ROOT_DIRECTORY.getCanonicalPath()).register(service, StandardWatchEventKinds.ENTRY_CREATE,
-//				StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
-//	}
+	// private void registerAllDirectory(final WatchService service) throws
+	// IOException {
+	//
+	// Files.walkFileTree(Paths.get(ROOT_DIRECTORY.getCanonicalPath()), new
+	// FileVisitor<Path>() {
+	// public FileVisitResult preVisitDirectory(Path dir,
+	// java.nio.file.attribute.BasicFileAttributes attrs)
+	// throws IOException {
+	// Path realPath = dir.toRealPath(LinkOption.NOFOLLOW_LINKS);
+	// Paths.get(realPath.toString()).register(service,
+	// StandardWatchEventKinds.ENTRY_CREATE,
+	// StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
+	// return FileVisitResult.CONTINUE;
+	// };
+	//
+	// public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws
+	// IOException {
+	//
+	// return FileVisitResult.CONTINUE;
+	// }
+	//
+	// public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws
+	// IOException {
+	//
+	// return FileVisitResult.CONTINUE;
+	// }
+	//
+	// public FileVisitResult visitFileFailed(Path file, IOException exc) throws
+	// IOException {
+	// return FileVisitResult.CONTINUE;
+	// };
+	// });
+	//
+	// Paths.get(ROOT_DIRECTORY.getCanonicalPath()).register(service,
+	// StandardWatchEventKinds.ENTRY_CREATE,
+	// StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY);
+	// }
 
 	/**
 	 * 采用递归方式遍历所有文件（夹），性能较低，放弃使用,改用重载的 loopFile(File rootDirectory)方法
