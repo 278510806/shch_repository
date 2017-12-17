@@ -427,6 +427,7 @@ public class ScanServer {
 		String fileName = f.getName();
 		String tmp = f.getAbsolutePath();
 		String path = tmp.substring(0, tmp.lastIndexOf(FILE_SEPERATER));
+		path=path.replace("\\", "/");
 		boolean isFile = f.isFile();
 		boolean isDirectory = f.isDirectory();
 		boolean isHidden = f.isHidden();
