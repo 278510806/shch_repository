@@ -20,7 +20,9 @@ public class LoggerUtils {
     public static String buildDebugMessage(String msg) {
 	return new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(new Date()) + ":<" + msg + ">";
     }
-
+    public static void print(String string) {
+    	print(string,true);
+    }
     public static void print(String string, boolean isSleep) {
 	BufferedWriter bw = null;
 	try {

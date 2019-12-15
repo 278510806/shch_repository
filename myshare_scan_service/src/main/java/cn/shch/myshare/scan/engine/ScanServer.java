@@ -58,15 +58,20 @@ public class ScanServer {
 	public static final int ANALYZE_THREAD_COUNT;
 	// 要扫描的所有文件类型
 	public static final List<String> FILE_SUFFIX_LIST = new ArrayList<String>();
-
+	public static final String SCAN_SAVE_FILE_SEP;
 	// 根据不同key名分辨文件的额不同类型，方便保存数据库filetype字段
-	//public static final Map<String, String> FILE_TYPE_MAP = new HashMap<String, String>();
+	// public static final Map<String, String> FILE_TYPE_MAP = new HashMap<String,
+	// String>();
 
 	//
 	public static final String SCAN_RECORD;
 
 	public static final String FILE_SEPERATER = System.getProperty("file.separator");
 	public static final int REPORT_SIZE = 10000;
+	// 保存类型；0表示存入数据库，1表示存成文件，2表示两者都存
+	public static final int SCAN_SAVE_TYPE;
+	// 如果指定了保存类型为文件，则保存文件的路径
+	public static String SCAN_SAVE_FILE_PATH;
 	private static Logger logger = Logger.getLogger(ScanServer.class);
 
 	static {
@@ -103,6 +108,13 @@ public class ScanServer {
 		SCAN_INTENSITY_PREMISE = Integer.parseInt(tmp);
 		String tmp2 = prop.getProperty("scan.intensity.if.medium.of.period");
 		SCAN_INTENSITY_IF_MEDIUM_OF_PERIOID = Integer.parseInt(tmp2);
+		String tmp3 = prop.getProperty("scan.save.type");
+		SCAN_SAVE_TYPE = Integer.parseInt(tmp3);
+		SCAN_SAVE_FILE_PATH = prop.getProperty("scan.save.file.path");
+		if(SCAN_SAVE_FILE_PATH.equals("")) {
+			SCAN_SAVE_FILE_PATH=System.getProperty("user.dir");
+		}
+		SCAN_SAVE_FILE_SEP=prop.getProperty("scan.save.file.sep");
 		String[] suffixes = s.split(",");
 		Arrays.sort(suffixes);
 		for (int i = 0; i < suffixes.length; i++) {
@@ -234,7 +246,7 @@ public class ScanServer {
 
 		List<FileData> list = null;
 		LoggerUtils.print(
-				"-----------------------------------------------------------------扫描过程开始----------------------------------------------------------------------------------",
+				"-------------------------------------------扫描过程开始--------------------------------------------",
 				false);
 		try {
 			list = loopFile(ROOT_DIRECTORY[idx]);
@@ -245,35 +257,61 @@ public class ScanServer {
 		long endTime = System.currentTimeMillis();
 		long second = (endTime - startTime) / 1000;
 		LoggerUtils.print(
-				"-----------------------------------------------------------------扫描过程结束----------------------------------------------------------------------------------",
+				"-------------------------------------------扫描过程结束-------------------------------------------",
 				false);
 		LoggerUtils.print("共扫描有效文件" + list.size() + "个，耗时：" + second + "秒", false);
 		LoggerUtils.print(
-				"-----------------------------------------------------------------分析数据过程开始----------------------------------------------------------------------------------",
+				"-------------------------------------------分析数据过程开始-------------------------------------------",
 				false);
-		DbOperator dop = new DbOperator();
-		List<FileData> dbList = dop.findAll();
-		Map<String, List<FileData>> map = analyze(list, dbList);
+		List<FileData> actList = null;
+		DbOperator dop =null;
+		if (SCAN_SAVE_TYPE == 0) {
+			LoggerUtils.print(
+					"-------------------------------------------根据配置类型，数据将保存到为数据库------------------------------------------",
+					false);
+			dop = new DbOperator();
+			actList = dop.findAll();
+		}else if(SCAN_SAVE_TYPE==1) {
+			LoggerUtils.print(
+					"-------------------------------------------根据配置类型，数据将保存到文件-------------------------------------------",
+					false);
+			List<String> strList=new ArrayList<String>();
+			for(FileData fd:list) {
+				strList.add(fd.toStringForSaveAsFile("TXT", SCAN_SAVE_FILE_SEP));
+			}
+			LoggerUtils.print(
+					"-------------------------------------------开始写入文件-------------------------------------------",
+					false);
+			MyFileCommon.saveAsFile(new File(SCAN_SAVE_FILE_PATH), strList, ""); 
+			LoggerUtils.print(
+					"-------------------------------------------写入文件结束-------------------------------------------",
+					false);
+			LoggerUtils.print("扫描服务顺利完成......", true);
+			LoggerUtils.print("共扫描文件：" + list.size() + "个", true);
+			return;
+		}
+		Map<String, List<FileData>> map = analyze(list, actList);
 		long endTime1 = System.currentTimeMillis();
 		long second1 = (endTime1 - endTime) / 1000;
 		LoggerUtils.print(
-				"-----------------------------------------------------------------分析数据过程结束----------------------------------------------------------------------------------",
+				"-------------------------------------------分析数据过程结束-------------------------------------------",
 				false);
 		LoggerUtils.print("耗时" + second1 + "秒", false);
 		LoggerUtils.print(
-				"-----------------------------------------------------------------保存数据过程开始----------------------------------------------------------------------------------",
+				"-------------------------------------------保存数据过程开始-------------------------------------------",
 				false);
+		if(dop==null) dop=new DbOperator();
 		dop.incrementUpdate(map);
 		long endTime2 = System.currentTimeMillis();
 		long second2 = (endTime2 - endTime1) / 1000;
 		LoggerUtils.print(
-				"-----------------------------------------------------------------保存数据过程结束----------------------------------------------------------------------------------",
+				"-------------------------------------------保存数据过程结束-------------------------------------------",
 				false);
 		LoggerUtils.print(
-				"----------------------------------------------------------更新数据过程开始---------------------------------------------------------------------------------",
+				"-------------------------------------------更新数据过程开始-------------------------------------------",
 				false);
 		LoggerUtils.print(
-				"----------------------------------------------------------更新数据过程結束---------------------------------------------------------------------------------",
+				"-------------------------------------------更新数据过程結束-------------------------------------------",
 				false);
 		LoggerUtils.print("耗时：" + second2 + "秒", false);
 		LoggerUtils.print("扫描服务顺利完成......", true);
@@ -294,12 +332,12 @@ public class ScanServer {
 	// }
 	// }
 
-	private Map<String, List<FileData>> analyze(List<FileData> fileList, List<FileData> dbList) {
-		List<FileData> delList = analyzeDelete(dbList);
+	private Map<String, List<FileData>> analyze(List<FileData> fileList, List<FileData> actList) {
+		List<FileData> delList = analyzeDelete(actList);
 		LoggerUtils.print("已完成获取删除文件列表过程", false);
 		List<FileData> updateList = new ArrayList<FileData>();
 		List<FileData> addList = new ArrayList<FileData>();
-		Collections.sort(dbList);
+		Collections.sort(actList);
 		AtomicLong cnt = new AtomicLong(0);
 		// long analyzeCount = 1000;
 		int fileListCount = fileList.size();
@@ -314,9 +352,9 @@ public class ScanServer {
 			if (i == ANALYZE_THREAD_COUNT - 1)
 				toIndex += surplus;
 			List<FileData> list = fileList.subList(fromIndex, toIndex);
-			// cnt = analyzeAddOrUpdateByEachThread(list, dbList, updateList,
+			// cnt = analyzeAddOrUpdateByEachThread(list, actList, updateList,
 			// addList, cnt);
-			Thread th = new Thread(new MyTask(list, dbList, updateList, addList, cnt, cdl));
+			Thread th = new Thread(new MyTask(list, actList, updateList, addList, cnt, cdl));
 			th.start();
 			// threadList.add(th);
 		}
@@ -427,7 +465,7 @@ public class ScanServer {
 		String fileName = f.getName();
 		String tmp = f.getAbsolutePath();
 		String path = tmp.substring(0, tmp.lastIndexOf(FILE_SEPERATER));
-		path=path.replace("\\", "/");
+		path = path.replace("\\", "/");
 		boolean isFile = f.isFile();
 		boolean isDirectory = f.isDirectory();
 		boolean isHidden = f.isHidden();

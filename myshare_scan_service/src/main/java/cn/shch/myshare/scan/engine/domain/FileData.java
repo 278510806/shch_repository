@@ -152,7 +152,29 @@ public class FileData implements Comparable<FileData> {
 				+ totalSpace + ", usableSpace=" + usableSpace + ", fileSize=" + fileSize + ", createTime=" + createTime
 				+ ", lastAccess=" + lastAccess + ", lastModified=" + lastModified + "]";
 	}
-
+	/**
+	 * 保存成文件
+	 * @param fileType
+	 * @param sep
+	 * @return
+	 */
+	public String toStringForSaveAsFile(String fileType,String sep) {
+		if(fileType.toUpperCase().equals("TXT")) {
+			return  fileName + sep+ filePath + sep+isDirectory + sep 
+					+ isFile + sep+ isHidden + sep+ canExecute
+					+ sep+ canRead + sep+ canWrite + sep+ freeSpace + sep
+					+ totalSpace + sep+ usableSpace  + fileSize + sep+ createTime
+					+ sep+ lastAccess + sep+ lastModified;
+		}else if(fileType.toUpperCase().equals("JSON")) {
+			// TODO 待完善
+			return null;
+		}else if(fileType.toUpperCase().equals("CSV")) {
+			//TODO 待完善
+			return null;
+		}else {
+			return null;
+		}
+	}
 	public int getId() {
 		return id;
 	}
